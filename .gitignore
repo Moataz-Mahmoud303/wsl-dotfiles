@@ -1,0 +1,19 @@
+# SECURITY: Never commit secrets, keys, or credentials
+
+# AWS credentials & SSO tokens
+.aws/credentials
+.aws/sso/cache/
+.aws/cli/cache/
+
+# SSH private keys (all formats)
+.ssh/id_*
+.ssh/*.pem
+.ssh/*.key
+!.ssh/config
+
+# Kube raw config (only the sanitised copy is kept)
+# (handled by backup script — this is a safety net)
+
+# Env files with secrets
+*.env
+.env*
