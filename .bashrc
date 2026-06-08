@@ -69,9 +69,11 @@ fi
 # ═══════════════════════════════════════════════════════════════
 export PATH="/usr/local/bin:/home/moataz/.local/bin:$PATH"
 
-if [ -f /home/moataz/work/tools/setup.sh ]; then
-    source /home/moataz/work/tools/setup.sh
-fi
+# Source DS-EKS-Tools (kswitch, kpods, klogs, kexec, etc. + ssmconnect)
+_DOTSOURCE="$HOME/work/ds-eks-tools/dotsource"
+[ -f "$_DOTSOURCE/ktools.sh" ]      && source "$_DOTSOURCE/ktools.sh"
+[ -f "$_DOTSOURCE/aws-tooling.sh" ] && source "$_DOTSOURCE/aws-tooling.sh"
+unset _DOTSOURCE
 
 # =====================================================================
 # AWS Login - fzf profile picker + WSL2 browser auto-open
@@ -240,6 +242,7 @@ fi
 # =====================================================================
 # KTOOLS (Kubernetes tools)
 # =====================================================================
+# (sourced earlier from ds-eks-tools/dotsource — this is a no-op fallback)
 [ -f ~/work/repo/dotsource/ktools.sh ] && source ~/work/repo/dotsource/ktools.sh
 
 ktools() {
