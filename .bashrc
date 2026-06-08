@@ -69,10 +69,11 @@ fi
 # ═══════════════════════════════════════════════════════════════
 export PATH="/usr/local/bin:/home/moataz/.local/bin:$PATH"
 
-# Source DS-EKS-Tools (kswitch, kpods, klogs, kexec, etc. + ssmconnect)
+# Source DS-EKS-Tools (Woodside/ds-eks-tools — auto-pulled daily)
 _DOTSOURCE="$HOME/work/ds-eks-tools/dotsource"
 [ -f "$_DOTSOURCE/ktools.sh" ]      && source "$_DOTSOURCE/ktools.sh"
 [ -f "$_DOTSOURCE/aws-tooling.sh" ] && source "$_DOTSOURCE/aws-tooling.sh"
+[ -f "$_DOTSOURCE/WSL-tools.sh" ]   && source "$_DOTSOURCE/WSL-tools.sh"
 unset _DOTSOURCE
 
 # =====================================================================
