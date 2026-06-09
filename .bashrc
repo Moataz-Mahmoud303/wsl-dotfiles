@@ -77,86 +77,80 @@ _DOTSOURCE="$HOME/work/ds-eks-tools/dotsource"
 unset _DOTSOURCE
 
 # =====================================================================
-# AWS Login - fzf profile picker + WSL2 browser auto-open
+# AWS Login - single sso-session login covers ALL profiles
 # =====================================================================
 awslogin() {
-    if ! command -v fzf &> /dev/null; then
-        echo "Error: fzf is required. Install with: sudo apt-get install fzf"
-        return 1
-    fi
-    if [ ! -f ~/.aws/config ]; then
-        echo "Error: ~/.aws/config not found."
-        return 1
-    fi
+    echo "🔐 Starting AWS SSO login (woodside session)..."
 
-    local profiles selected temp_file device_url user_code aws_pid login_status
-    profiles=$(grep -E "^\[profile " ~/.aws/config | sed 's/\[profile //;s/\]//' | sort)
-
-    if [ -z "$profiles" ]; then
-        echo "No AWS profiles found in ~/.aws/config"
-        return 1
-    fi
-
-    selected=$(echo "$profiles" | fzf \
-        --preview 'grep -A 10 "^\[profile {}\]" ~/.aws/config' \
-        --header='Select AWS profile to login (ESC to cancel)' \
-        --preview-window=right:50%)
-
-    if [ -z "$selected" ]; then
-        echo "Cancelled."
-        return 0
-    fi
-
-    echo "🔐 Logging in: $selected"
+    local temp_file aws_pid device_url user_code
     temp_file=$(mktemp)
-    (aws sso login --profile "$selected" 2>&1) > "$temp_file" &
+    (aws sso login --sso-session woodside 2>&1) > "$temp_file" &
     aws_pid=$!
 
-    echo "⏳ Waiting for SSO URL..."
-    device_url=""
-    user_code=""
+    # Wait for the device URL to appear (WSL has no browser)
     for i in $(seq 1 30); do
         sleep 0.5
-        device_url=$(grep -oE 'https://[^ ]+user_code=[^ ]+' "$temp_file" 2>/dev/null | head -1)
-        [ -z "$device_url" ] && device_url=$(grep -oE 'https://[^ ]+(awsapps\.com|amazonaws\.com)[^ ]*' "$temp_file" 2>/dev/null | head -1)
-        [ -n "$device_url" ] && { user_code=$(grep -oE '[A-Z]{4}-[A-Z]{4}' "$temp_file" 2>/dev/null | head -1); break; }
+        device_url=$(grep -oE 'https://[^ ]*device_authorization[^ ]*' "$temp_file" 2>/dev/null | head -1)
+        [ -z "$device_url" ] && device_url=$(grep -oE 'https://[^ ]*awsapps\.com[^ ]*' "$temp_file" 2>/dev/null | head -1)
+        if [ -n "$device_url" ]; then
+            user_code=$(grep -oE '[A-Z]{4}-[A-Z]{4}' "$temp_file" 2>/dev/null | head -1)
+            break
+        fi
         kill -0 "$aws_pid" 2>/dev/null || break
     done
 
     if [ -n "$device_url" ]; then
         echo ""
-        echo "📱 Device authentication required"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         if [ -n "$user_code" ]; then
             echo "  🔑 Code: $user_code"
-            command -v clip.exe &>/dev/null && echo -n "$user_code" | clip.exe && echo "  📋 Code copied to clipboard!"
+            command -v clip.exe &>/dev/null && echo -n "$user_code" | clip.exe && echo "  📋 Copied to clipboard!"
         fi
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "🌐 Opening browser..."
-        if grep -qi microsoft /proc/version 2>/dev/null; then
-            powershell.exe -NoProfile -Command "Start-Process '$device_url'" 2>/dev/null \
-                || cmd.exe /c start "" "$device_url" 2>/dev/null
-        else
-            xdg-open "$device_url" 2>/dev/null || echo "Please visit: $device_url"
-        fi
-        echo "✅ Browser opened! Waiting for authentication..."
-    else
-        echo "⚠️  Could not detect SSO URL. Output:" && cat "$temp_file"
+        # Open browser in Windows (WSL)
+        powershell.exe -NoProfile -Command "Start-Process '$device_url'" 2>/dev/null \
+            || cmd.exe /c start "" "$device_url" 2>/dev/null \
+            || echo "  🌐 Open: $device_url"
+        echo "⏳ Waiting for browser approval..."
     fi
 
     wait "$aws_pid"
-    login_status=$?
+    local status=$?
     rm -f "$temp_file"
 
-    echo ""
-    if [ "$login_status" -eq 0 ]; then
-        echo "✅ Logged in: $selected"
-        echo "   Verify: aws sts get-caller-identity --profile $selected"
+    if [ "$status" -eq 0 ]; then
+        echo "✅ SSO login successful — all profiles are now active"
+        echo "   Use 'awsfzf' to set a specific profile, or pass --profile to aws commands"
     else
-        echo "❌ Login failed or cancelled"
+        echo "❌ SSO login failed"
     fi
-    return "$login_status"
+    return "$status"
 }
+
+# Warn if SSO token already expired when opening a shell
+_aws_sso_check() {
+    command -v jq &>/dev/null || return
+    local now f expires token
+    now=$(date +%s)
+    for f in "$HOME/.aws/sso/cache"/*.json; do
+        [ -e "$f" ] || continue
+        expires=$(jq -r '.expiresAt // empty' "$f" 2>/dev/null)
+        token=$(jq -r '.accessToken // empty' "$f" 2>/dev/null)
+        if [ -n "$token" ] && [ -n "$expires" ]; then
+            local epoch
+            epoch=$(date -d "$expires" +%s 2>/dev/null)
+            if [ -n "$epoch" ] && [ "$epoch" -gt "$now" ]; then
+                local mins_left=$(( (epoch - now) / 60 ))
+                if [ "$mins_left" -lt 60 ]; then
+                    echo "⚠️  AWS SSO token expires in ${mins_left}m — run 'awslogin' to refresh"
+                fi
+                return 0
+            fi
+        fi
+    done
+    echo "⚠️  AWS SSO token expired — run 'awslogin' to authenticate"
+}
+_aws_sso_check
 
 # =====================================================================
 # AWS Profile selector (awsfzf)
@@ -328,3 +322,7 @@ if [ -d "$_BASHRC_OD" ]; then
     unset _latest
 fi
 unset _BASHRC_OD
+
+# Auto-start dashboard server on login
+/home/moataz/.local/bin/start-dashboard.sh 2>/dev/null &
+
