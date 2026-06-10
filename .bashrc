@@ -81,48 +81,44 @@ unset _DOTSOURCE
 # =====================================================================
 awslogin() {
     echo "🔐 Starting AWS SSO login (woodside session)..."
+    echo "   (browser will open automatically, code copied to clipboard)"
+    echo ""
 
-    local temp_file aws_pid device_url user_code
-    temp_file=$(mktemp)
-    (aws sso login --sso-session woodside 2>&1) > "$temp_file" &
-    aws_pid=$!
+    local status_file
+    status_file=$(mktemp)
 
-    # Wait for the device URL to appear (WSL has no browser)
-    for i in $(seq 1 30); do
-        sleep 0.5
-        device_url=$(grep -oE 'https://[^ ]*device_authorization[^ ]*' "$temp_file" 2>/dev/null | head -1)
-        [ -z "$device_url" ] && device_url=$(grep -oE 'https://[^ ]*awsapps\.com[^ ]*' "$temp_file" 2>/dev/null | head -1)
-        if [ -n "$device_url" ]; then
-            user_code=$(grep -oE '[A-Z]{4}-[A-Z]{4}' "$temp_file" 2>/dev/null | head -1)
-            break
+    # Stream output line-by-line in real time (no backgrounding / no silent hang)
+    # Auto-opens Windows browser and copies code when they appear in output
+    while IFS= read -r line; do
+        echo "$line"
+        # Auto-open browser when URL line appears
+        if echo "$line" | grep -qE 'https://'; then
+            local url
+            url=$(echo "$line" | grep -oE 'https://[^ ]+' | head -1)
+            if [ -n "$url" ]; then
+                powershell.exe -NoProfile -Command "Start-Process '$url'" 2>/dev/null \
+                    || cmd.exe /c start "" "$url" 2>/dev/null
+                echo "🌐 Browser opened!"
+            fi
         fi
-        kill -0 "$aws_pid" 2>/dev/null || break
-    done
-
-    if [ -n "$device_url" ]; then
-        echo ""
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        if [ -n "$user_code" ]; then
-            echo "  🔑 Code: $user_code"
-            command -v clip.exe &>/dev/null && echo -n "$user_code" | clip.exe && echo "  📋 Copied to clipboard!"
+        # Copy verification code to clipboard when it appears
+        if echo "$line" | grep -qE '[A-Z]{4}-[A-Z]{4}'; then
+            local code
+            code=$(echo "$line" | grep -oE '[A-Z]{4}-[A-Z]{4}' | head -1)
+            echo -n "$code" | clip.exe 2>/dev/null
+            echo "📋 Code '$code' copied to clipboard — paste it in the browser tab"
         fi
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        # Open browser in Windows (WSL)
-        powershell.exe -NoProfile -Command "Start-Process '$device_url'" 2>/dev/null \
-            || cmd.exe /c start "" "$device_url" 2>/dev/null \
-            || echo "  🌐 Open: $device_url"
-        echo "⏳ Waiting for browser approval..."
-    fi
+    done < <(stdbuf -oL aws sso login --sso-session woodside 2>&1; echo "$?" > "$status_file")
 
-    wait "$aws_pid"
-    local status=$?
-    rm -f "$temp_file"
+    local status
+    status=$(cat "$status_file" 2>/dev/null || echo "1")
+    rm -f "$status_file"
 
+    echo ""
     if [ "$status" -eq 0 ]; then
-        echo "✅ SSO login successful — all profiles are now active"
-        echo "   Use 'awsfzf' to set a specific profile, or pass --profile to aws commands"
+        echo "✅ SSO login successful — all 50 profiles are now active"
     else
-        echo "❌ SSO login failed"
+        echo "❌ SSO login failed (exit code: $status)"
     fi
     return "$status"
 }
