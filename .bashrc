@@ -213,8 +213,10 @@ proxy_on() {
   export HTTPS_PROXY="http://127.0.0.1:8118"
   export http_proxy="$HTTP_PROXY"
   export https_proxy="$HTTPS_PROXY"
-  export NO_PROXY="localhost,127.0.0.1,::1,.local,.amazonaws.com,.eks.amazonaws.com,kubernetes.io,6.6.0.80,*.sk1.ap-southeast-2.eks.amazonaws.com"
+  export NO_PROXY="localhost,127.0.0.1,::1,.local"
   export no_proxy="$NO_PROXY"
+  # EKS endpoints resolve to internal 6.6.0.x (Woodside GSA gateway) which
+  # WSL cannot reach directly — must go through Privoxy which runs on Windows.
   echo "[OK] Proxy ON ($HTTP_PROXY)"
 }
 
