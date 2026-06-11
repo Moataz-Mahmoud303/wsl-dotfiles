@@ -206,7 +206,7 @@ if command -v helm &> /dev/null; then
 fi
 
 # =====================================================================
-# PRIVOXY PROXY CONFIGURATION (corporate proxy)
+# PRIVOXY PROXY CONFIGURATION (for corporate proxy)
 # =====================================================================
 proxy_on() {
   export HTTP_PROXY="http://127.0.0.1:8118"
@@ -223,11 +223,13 @@ proxy_off() {
   echo "[OK] Proxy OFF"
 }
 
-# Auto-enable proxy if Privoxy is running
+# Auto-enable proxy if Privoxy is running on port 8118
+# (Privoxy runs on Windows, WSL connects to it via localhost:8118)
 if timeout 1 bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/8118" 2>/dev/null; then
   proxy_on
 else
-  echo "[⚠] Privoxy not running on 127.0.0.1:8118 - proxy disabled"
+  echo "[⚠] Privoxy not running on 127.0.0.1:8118"
+  echo "    Fix: Restart Privoxy on Windows or run 'proxy_on' manually"
 fi
 
 # =====================================================================
