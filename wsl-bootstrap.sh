@@ -139,6 +139,23 @@ EOF
   msg_ok "AWS config written. Edit ~/.aws/config to add/change profiles for your team."
 fi
 
+# ─── 6b. SSH CONFIG (for terminal SSH to AWAUBDEV01112) ──────────────────────
+WOPID=$(whoami)
+if grep -q 'awaubdev01112' ~/.ssh/config 2>/dev/null; then
+  msg_ok "SSH config already has awaubdev01112. Skipping."
+else
+  msg_ok "Writing SSH config for AWAUBDEV01112..."
+  cat >> ~/.ssh/config <<EOF
+Host awaubdev01112
+    HostName i-00d70946cb4d92dad
+    User $WOPID
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=%p --profile wpl-wrk-dstools-prd --region ap-southeast-2
+EOF
+  chmod 600 ~/.ssh/config
+  msg_ok "SSH config written. Terminal: ssh awaubdev01112"
+fi
+
 # ─── 7. PYTHON VENV ─────────────────────────────────────────────────────────
 VENV_DIR="$HOME/.venv"
 if [[ -d "$VENV_DIR" ]]; then

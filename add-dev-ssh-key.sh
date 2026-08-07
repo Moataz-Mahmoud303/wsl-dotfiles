@@ -25,6 +25,19 @@ script = "\n".join([
     f"mkdir -p $D && chown {u} $H $D && chmod 700 $D",
     f"touch $K && chown {u} $K && chmod 600 $K",
     f"grep -qF '{k}' $K 2>/dev/null && echo 'already present' || {{ printf '%s\\n' '{k}' >> $K && echo 'added'; }}",
+    # SSSD simple_allow_users: add user if not in an allowed group
+    f"if grep -q 'simple_allow_groups' /etc/sssd/sssd.conf 2>/dev/null; then"
+    f"  if ! id '{u}' 2>/dev/null | grep -qi 'right-usr-sv-science.dev.server'; then"
+    f"    if grep -q 'simple_allow_users' /etc/sssd/sssd.conf; then"
+    f"      grep -q '{u}' /etc/sssd/sssd.conf || sed -i 's/^simple_allow_users = /simple_allow_users = {u}, /' /etc/sssd/sssd.conf"
+    f"    ; else"
+    f"      sed -i '/^simple_allow_groups/a simple_allow_users = {u}' /etc/sssd/sssd.conf"
+    f"    ; fi"
+    f"    systemctl restart sssd && echo 'sssd: added {u} to simple_allow_users'"
+    f"  ; else"
+    f"    echo 'sssd: {u} already in allowed group'"
+    f"  ; fi"
+    f"; fi",
 ])
 
 params = json.dumps({"commands": [script]})
