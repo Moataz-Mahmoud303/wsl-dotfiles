@@ -116,7 +116,7 @@ awslogin() {
 
     echo ""
     if [ "$status" -eq 0 ]; then
-        echo "✅ SSO login successful — all 50 profiles are now active"
+        echo "✅ SSO login successful — all profiles are now active"
     else
         echo "❌ SSO login failed (exit code: $status)"
     fi
