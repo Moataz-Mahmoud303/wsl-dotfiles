@@ -33,9 +33,13 @@ region = ap-southeast-2
 output = json
 EOF
 
-# SSH config
+# SSH config — replace if exists with wrong content, add if missing
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
-grep -q 'awaubdev01112' ~/.ssh/config 2>/dev/null || cat >> ~/.ssh/config << EOF
+if grep -q 'awaubdev01112' ~/.ssh/config 2>/dev/null; then
+  # Remove old entry and rewrite
+  sed -i '/^Host awaubdev01112$/,/^Host \|^$/d' ~/.ssh/config
+fi
+cat >> ~/.ssh/config << EOF
 Host awaubdev01112
     HostName i-00d70946cb4d92dad
     User $WOPID
