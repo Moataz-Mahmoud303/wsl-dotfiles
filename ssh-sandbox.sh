@@ -48,6 +48,27 @@ Host awaubdev01112
 EOF
 chmod 600 ~/.ssh/config
 
+# VS Code Remote-SSH: point to correct SSH config
+VSCODE_SETTINGS=""
+for d in ~/.config/Code/User ~/.config/Code\ -\ Insiders/User; do
+  [ -d "$(dirname "$d")" ] && VSCODE_SETTINGS="$d/settings.json" && break
+done
+if [ -n "$VSCODE_SETTINGS" ]; then
+  mkdir -p "$(dirname "$VSCODE_SETTINGS")"
+  if [ -f "$VSCODE_SETTINGS" ]; then
+    python3 -c "
+import json, os
+f='$VSCODE_SETTINGS'
+with open(f) as fh: d = json.load(fh)
+d['remote.SSH.configFile'] = os.path.expanduser('~/.ssh/config')
+with open(f,'w') as fh: json.dump(d, fh, indent=2)
+" 2>/dev/null && echo "[ok] VS Code settings updated to read ~/.ssh/config"
+  else
+    echo '{"remote.SSH.configFile": "'$HOME'/.ssh/config"}' > "$VSCODE_SETTINGS"
+    echo "[ok] VS Code settings created with SSH config path"
+  fi
+fi
+
 echo ""
 echo "[ok] Done. Your public key:"
 cat ~/.ssh/id_ed25519.pub
@@ -55,3 +76,5 @@ echo ""
 echo "Send the key above to Moataz, then run:"
 echo "  aws sso login --profile wpl-wrk-dstools-prd"
 echo "  ssh awaubdev01112"
+echo ""
+echo "Then restart VS Code — awaubdev01112 will appear in Remote Explorer."
