@@ -35,17 +35,24 @@ EOF
 
 # SSH config — replace if exists with wrong content, add if missing
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
-if grep -q 'awaubdev01112' ~/.ssh/config 2>/dev/null; then
-  # Remove old entry and rewrite
-  sed -i '/^Host awaubdev01112$/,/^Host \|^$/d' ~/.ssh/config
-fi
-cat >> ~/.ssh/config << EOF
+# Only add if not already correct — never remove other hosts
+if grep -q 'i-00d70946cb4d92dad' ~/.ssh/config 2>/dev/null; then
+  echo "[ok] SSH config already has correct awaubdev01112 entry."
+else
+  # Remove broken entry (wrong HostName) if present, keep everything else
+  if grep -q 'awaubdev01112' ~/.ssh/config 2>/dev/null; then
+    sed -i '/^Host awaubdev01112$/,/^Host \|^$/{ /^Host awaubdev01112$/d; /^$/!d; }' ~/.ssh/config
+  fi
+  cat >> ~/.ssh/config << EOF
+
 Host awaubdev01112
     HostName i-00d70946cb4d92dad
     User $WOPID
     IdentityFile ~/.ssh/id_ed25519
     ProxyCommand aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=%p --profile wpl-wrk-dstools-prd --region ap-southeast-2
 EOF
+  echo "[ok] SSH config entry added for awaubdev01112."
+fi
 chmod 600 ~/.ssh/config
 
 # VS Code Remote-SSH: point to correct SSH config
